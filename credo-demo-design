@@ -1,0 +1,147 @@
+
+
+=== CREDO implementation:
+Two contracts implementing cDAI and DET.
+100 DET minted at start, then allocated to investors.
+DET value is set at 10% of DAI locked in cDAI.  Each DET is worth total_dai/total_det/10 = total_dai / 1000.
+
+Initial implementation uses ETH/cETH rather than DAI, for simplicity.  DAI support to be added as a bonus if we have time.
+
+
+=== Sample dapp:
+on-chain historical balances of another smart contract, e.g. total DAI CDPs.  Participants are incentivized to trigger recording every 10 minutes.  cDAI stake slashed if a participant misses a turn.  Consuming contracts pay for the service. Proceeds paid statistically to participants for simplicity.
+
+
+Contracts:
+
+=== DET contract:
+ERC20, initialized at constructor with 100 DET owned by the creator.
+Constructor also creates cDAI contract and saves its address as cDAI_contract.
+Creator transfers DET to investors using standard ERC20 transfers.
+
+mapping(address => uint256) DET_balances;
+
+constructor:
+    total_det = 100
+    DET_balances[msg.sender] = 100
+    cDAI_contract = new cDAI_contract...
+
+Implement all public ERC20 functions.  Transfers use the internal transfer function below.
+
+public foreclose(address1,address2,amount) - Used by cDAI_contract to foreclose DET of investors with negative cDAI balance.
+    require sender == cDAI_contract
+    transfer(address1,address2,amount).
+
+internal transfer(from, to, amount) -
+    require DET_balances[from] >= amount
+    cDAI_contract.transfer_by_det(from, to, amount)     // Transfer the cDAI associated with the transferred DET. Requires the cDAI to be "free" (not staked or withdrawn)
+    // transfer det amount from `from` to `to`
+    DET_balances[from] -= amount    // Use SafeMath of course
+    DET_balances[to] += amount    // Use SafeMath of course
+    Emit ERC20 Transfer event.
+
+
+=== cDAI contract:
+ERC20 contract initialized by DET contract with 0 cDAI
+Constructor saves creator address as DET_contract address.
+
+mapping(address => int256) cDAI_balances;   // signed int, may be negative!
+mapping(address => uint256) det_holder_borrowed_cdai    // keeps track of cdai generated for det holders
+mapping(address => uint256) debt_timers // time of foreclosure for open debts
+
+constructor:
+    DET_contract = msg.sender
+    det_divider = 10 * DET_contract.total_det // 1000 in this case
+    det_value = 0
+
+public deposit() - payable function, gets DAI, mings cDAI to sender. Used by non-investors (participants) to acquire cDAI for staking.
+    // if there was an open debt and it was fully covered by this deposit, settle the debt.
+    if sender.cDAI_balance >= 0 && debt_timers[sender] != 0:
+        debt_timers[sender] = 0
+        emit DebtSettled(sender)
+    det_value = DAI_balance / det_divider   // increase det_value since the balance increased
+    Emit ValueChange(DAI_balance, DET_value)    // DET holders see this, and may use update_det_holder_balance() to claim their additional cDAI
+
+withdraw(amount) - called by any cDAI holder to burn cDAI and withdraw DAI
+    require cDAI_balances[sender] >= amount
+    // burn cDAI, send DAI
+    cDAI_balances[sender] -= amount // SafeMath...
+    send 'amount' DAI to sender
+    det_value = DAI_balance / det_divider   // DET value decreased since there's less DAI
+    Emit ValueChange(DAI_balance, DET_value)    // DET holders see this and check if it'll make their cDAI balance negative, creating a debt. They should deposit more DAI or otherwise acquire more cDAI.
+
+update_det_holder_balance(address DET_holder) - can be called by anyone. updates cDAI balances of a DET holder after ValueChange events. On value increase, DET holder calls it to mint cDAI. On value decrease, anyone may call it to create a debt, and foreclose DET is the holder does not settle it.
+    require DET_contract.balanceOf(DET_holder) > 0
+    current_value = DAI_balance * DET_contract.balanceOf(DET_holder) / det_divider
+    signed int diff = current_value - det_holder_borrowed_cdai[DET_holder]
+    det_holder_borrowed_cdai[DET_holder] = current_value
+    cDAI_balances[DET_holder] += diff
+    if cDAI_balances[DET_holder] < 0 && debt_timers[DET_holder] == 0:   // value decrease created a new debt (existing debt increases don't reset the timer)
+        debt_must_be_paid_by = now + 1 hour
+        debt_timers[DET_holder] = debt_must_be_paid_by
+        emit Debt(DET_holder, cDAI_balances[DET_holder], debt_must_be_paid_by)
+
+foreclose_det(address DET_holder, amount) - called by anyone with cDAI, to foreclose DET with an unsettled due debt. Caller pays the debt (part or whole), acquires DET tokens.
+    cDAI_contract.update_det_holder_balance(DET_holder)   // Ensure that balance is updated to current DET value
+    require debt_timers[DET_holder] > 0 && debt_timers[DET_holder] < now && amount+cDAI_balances[DET_holder] <= 0 && cDAI_balances[sender] >= amount && DET_contract.balanceOf[DET_holder] >= amount / det_value
+    det_amount = amount / det_value
+    DET_contract.foreclose(DET_holder, sender, det_amount)
+    emit Foreclosed(DET_holder, sender, amount / det_value)
+    if amount+cDAI_balances[DET_holder] >= 0:   // Debt fully settled?
+        debt_timers[DET_holder] = 0
+        emit DebtSettled(DET_holder)
+
+transfer_by_det(from, to, det_amount) - called by DET contract, transfers cDAI associated with DET, or revert if insufficient (e.g. DET holder staked or withdrew some cDAI)
+    require sender == DET_contract
+    amount = det_amount * det_value
+    cDAI_contract.update_det_holder_balance(from)   // Ensure that balance is updated to current DET value
+    cDAI_contract.update_det_holder_balance(to)
+    require cDAI_balances[from] >= amount
+    // transfer amount from `from` to 'to'
+    cDAI_balances[from] -= amount    // Use SafeMath of course
+    cDAI_balances[to] += amount    // Use SafeMath of course
+
+
+=== Sample dapp contract:
+Constructor gets target_contract address, cDAI_address.
+
+mapping(uint256 => uint256) recorded_data
+mapping(address => uint32) participants // maps participant address to its array position
+address[] participants_array
+
+unstake_delay = 1 hour
+stake_size = 10 cDAI
+address next_caller = 0
+uint last_recorded_time = 0
+
+stake() -
+    receives cDAI from sender (previously created allowance)
+    adds sender to participants (append to array and save position in mapping)
+    if next_caller==0 next_caller=sender.
+
+unstake_internal(address participant)
+    remove participant from participants (move last array member to sender position, shrink array, delete from participants mapping)
+    trigger()   // In case sender was next_caller, it'll now change to something else
+    transfer staked cDAI to sender // not participant, sender.  In unstake it's the same address, in slash it is different.
+
+unstake() -
+    unstake_internal(sender)
+
+slash(address participant) -
+    require that participant missed its turn (last_recorded_time more than 10 minutes ago and next_caller == participant)
+    unstake_internal(participant)   // removes the participant and take its stake
+
+trigger() -
+    recorded_data[now] = target_contract.balance
+    if sender == next_caller
+        payout = balance // balance will be zero at the end of this call
+        // participant gets paid whatever fees were collected since the last trigger, but only in turn. Prevents proceeds-hijacking out of turn.
+        // sometimes participant makes money, sometimes not, but always incentivized to trigger() in order not to get slashed.
+    next_caller = participants_array[prev_block_hash % participants_array.length]   // randomly assign next caller
+    emit Recorded(timestamp, balance, next_caller)
+    send payout to sender
+
+read(time) - payable function providing a service to other dapps.
+    Charge a small amount (so balance+=fee)
+    return recorded_data[time]
+
