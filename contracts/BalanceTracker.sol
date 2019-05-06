@@ -42,13 +42,15 @@
 
 
 pragma solidity >=0.4.0 <0.6.0;
-import "./IERC20.sol"
+
+import "./IERC20.sol";
+
 contract BalanceTracker {
 
     address target;
     IERC20 cDAI;
 
-    mapping(uint => uint) recordedData;
+    mapping(uint => uint) private recordedData;
     mapping(address => uint) private participantsAddrToIndex; // maps participant address to its array position
     address[] participantsArray;
 
@@ -109,7 +111,7 @@ contract BalanceTracker {
         if (msg.sender == nextCaller) {
             payout = address(this).balance;
         }
-        nextCaller = participantsArray[uint(blockhash(block.number - 1))  % participantsArray.length];
+        nextCaller = participantsArray[uint(blockhash(block.number - 1)) % participantsArray.length];
         lastRecordedTime = now;
         emit Recorded(lastRecordedTime, address(this).balance, nextCaller);
         msg.sender.transfer(payout);
