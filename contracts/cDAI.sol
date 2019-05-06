@@ -1,62 +1,339 @@
-=== cDAI contract:
-ERC20 contract initialized by DET contract with 0 cDAI
-Constructor saves creator address as DET_contract address.
+//=== cDAI contract:
+//ERC20 contract initialized by DET contract with 0 cDAI
+//Constructor saves creator address as DET_contract address.
+//
+//mapping(address => int256) cDAI_balances;   // signed int, may be negative!
+//mapping(address => uint256) det_holder_borrowed_cdai    // keeps track of cdai generated for det holders
+//mapping(address => uint256) debt_timers // time of foreclosure for open debts
+//
+//constructor:
+//    DET_contract = msg.sender
+//    det_divider = 10 * DET_contract.total_det // 1000 in this case
+//    det_value = 0
+//
+//public deposit() - payable function, gets DAI, mints cDAI to sender. Used by non-investors (participants) to acquire cDAI for staking.
+//    // if there was an open debt and it was fully covered by this deposit, settle the debt.
+//    if sender.cDAI_balance >= 0 && debt_timers[sender] != 0:
+//        debt_timers[sender] = 0
+//        emit DebtSettled(sender)
+//    det_value = DAI_balance / det_divider   // increase det_value since the balance increased
+//    Emit ValueChange(DAI_balance, DET_value)    // DET holders see this, and may use update_det_holder_balance() to claim their additional cDAI
+//
+//withdraw(amount) - called by any cDAI holder to burn cDAI and withdraw DAI
+//    require cDAI_balances[sender] >= amount
+//    // burn cDAI, send DAI
+//    cDAI_balances[sender] -= amount // SafeMath...
+//    send 'amount' DAI to sender
+//    det_value = DAI_balance / det_divider   // DET value decreased since there's less DAI
+//    Emit ValueChange(DAI_balance, DET_value)    // DET holders see this and check if it'll make their cDAI balance negative, creating a debt. They should deposit more DAI or otherwise acquire more cDAI.
+//
+//update_det_holder_balance(address DET_holder) - can be called by anyone. updates cDAI balances of a DET holder after ValueChange events. On value increase, DET holder calls it to mint cDAI. On value decrease, anyone may call it to create a debt, and foreclose DET is the holder does not settle it.
+//    require DET_contract.balanceOf(DET_holder) > 0
+//    current_value = DAI_balance * DET_contract.balanceOf(DET_holder) / det_divider
+//    signed int diff = current_value - det_holder_borrowed_cdai[DET_holder]
+//    det_holder_borrowed_cdai[DET_holder] = current_value
+//    cDAI_balances[DET_holder] += diff
+//    if cDAI_balances[DET_holder] < 0 && debt_timers[DET_holder] == 0:   // value decrease created a new debt (existing debt increases don't reset the timer)
+//        debt_must_be_paid_by = now + 1 hour
+//        debt_timers[DET_holder] = debt_must_be_paid_by
+//        emit Debt(DET_holder, cDAI_balances[DET_holder], debt_must_be_paid_by)
+//
+//foreclose_det(address DET_holder, amount) - called by anyone with cDAI, to foreclose DET with an unsettled due debt. Caller pays the debt (part or whole), acquires DET tokens.
+//    cDAI_contract.update_det_holder_balance(DET_holder)   // Ensure that balance is updated to current DET value
+//    require debt_timers[DET_holder] > 0 && debt_timers[DET_holder] < now && amount+cDAI_balances[DET_holder] <= 0 && cDAI_balances[sender] >= amount && DET_contract.balanceOf[DET_holder] >= amount / det_value
+//    det_amount = amount / det_value
+//    DET_contract.foreclose(DET_holder, sender, det_amount)
+//    emit Foreclosed(DET_holder, sender, amount / det_value)
+//    if amount+cDAI_balances[DET_holder] >= 0:   // Debt fully settled?
+//        debt_timers[DET_holder] = 0
+//        emit DebtSettled(DET_holder)
+//
+//transfer_by_det(from, to, det_amount) - called by DET contract, transfers cDAI associated with DET, or revert if insufficient (e.g. DET holder staked or withdrew some cDAI)
+//    require sender == DET_contract
+//    amount = det_amount * det_value
+//    cDAI_contract.update_det_holder_balance(from)   // Ensure that balance is updated to current DET value
+//    cDAI_contract.update_det_holder_balance(to)
+//    require cDAI_balances[from] >= amount
+//    // transfer amount from `from` to 'to'
+//    cDAI_balances[from] -= amount    // Use SafeMath of course
+//    cDAI_balances[to] += amount    // Use SafeMath of course
 
-mapping(address => int256) cDAI_balances;   // signed int, may be negative!
-mapping(address => uint256) det_holder_borrowed_cdai    // keeps track of cdai generated for det holders
-mapping(address => uint256) debt_timers // time of foreclosure for open debts
-
-constructor:
-    DET_contract = msg.sender
-    det_divider = 10 * DET_contract.total_det // 1000 in this case
-    det_value = 0
-
-public deposit() - payable function, gets DAI, mints cDAI to sender. Used by non-investors (participants) to acquire cDAI for staking.
-    // if there was an open debt and it was fully covered by this deposit, settle the debt.
-    if sender.cDAI_balance >= 0 && debt_timers[sender] != 0:
-        debt_timers[sender] = 0
-        emit DebtSettled(sender)
-    det_value = DAI_balance / det_divider   // increase det_value since the balance increased
-    Emit ValueChange(DAI_balance, DET_value)    // DET holders see this, and may use update_det_holder_balance() to claim their additional cDAI
-
-withdraw(amount) - called by any cDAI holder to burn cDAI and withdraw DAI
-    require cDAI_balances[sender] >= amount
-    // burn cDAI, send DAI
-    cDAI_balances[sender] -= amount // SafeMath...
-    send 'amount' DAI to sender
-    det_value = DAI_balance / det_divider   // DET value decreased since there's less DAI
-    Emit ValueChange(DAI_balance, DET_value)    // DET holders see this and check if it'll make their cDAI balance negative, creating a debt. They should deposit more DAI or otherwise acquire more cDAI.
-
-update_det_holder_balance(address DET_holder) - can be called by anyone. updates cDAI balances of a DET holder after ValueChange events. On value increase, DET holder calls it to mint cDAI. On value decrease, anyone may call it to create a debt, and foreclose DET is the holder does not settle it.
-    require DET_contract.balanceOf(DET_holder) > 0
-    current_value = DAI_balance * DET_contract.balanceOf(DET_holder) / det_divider
-    signed int diff = current_value - det_holder_borrowed_cdai[DET_holder]
-    det_holder_borrowed_cdai[DET_holder] = current_value
-    cDAI_balances[DET_holder] += diff
-    if cDAI_balances[DET_holder] < 0 && debt_timers[DET_holder] == 0:   // value decrease created a new debt (existing debt increases don't reset the timer)
-        debt_must_be_paid_by = now + 1 hour
-        debt_timers[DET_holder] = debt_must_be_paid_by
-        emit Debt(DET_holder, cDAI_balances[DET_holder], debt_must_be_paid_by)
-
-foreclose_det(address DET_holder, amount) - called by anyone with cDAI, to foreclose DET with an unsettled due debt. Caller pays the debt (part or whole), acquires DET tokens.
-    cDAI_contract.update_det_holder_balance(DET_holder)   // Ensure that balance is updated to current DET value
-    require debt_timers[DET_holder] > 0 && debt_timers[DET_holder] < now && amount+cDAI_balances[DET_holder] <= 0 && cDAI_balances[sender] >= amount && DET_contract.balanceOf[DET_holder] >= amount / det_value
-    det_amount = amount / det_value
-    DET_contract.foreclose(DET_holder, sender, det_amount)
-    emit Foreclosed(DET_holder, sender, amount / det_value)
-    if amount+cDAI_balances[DET_holder] >= 0:   // Debt fully settled?
-        debt_timers[DET_holder] = 0
-        emit DebtSettled(DET_holder)
-
-transfer_by_det(from, to, det_amount) - called by DET contract, transfers cDAI associated with DET, or revert if insufficient (e.g. DET holder staked or withdrew some cDAI)
-    require sender == DET_contract
-    amount = det_amount * det_value
-    cDAI_contract.update_det_holder_balance(from)   // Ensure that balance is updated to current DET value
-    cDAI_contract.update_det_holder_balance(to)
-    require cDAI_balances[from] >= amount
-    // transfer amount from `from` to 'to'
-    cDAI_balances[from] -= amount    // Use SafeMath of course
-    cDAI_balances[to] += amount    // Use SafeMath of course
 
 
+pragma solidity >=0.4.0 <0.6.0;
 
+import "./IERC20.sol";
+import "./SafeMath.sol";
+import "./DET.sol";
+/*
+ * Based on open-zeppelin implementation of ERC20 tokens:
+ * https://github.com/OpenZeppelin/openzeppelin-solidity/blob/9b3710465583284b8c4c5d2245749246bb2e0094/contracts/token/ERC20/ERC20.sol
+*/
+contract cDAI is IERC20 {
+    using SafeMath for uint256;
+
+    mapping(address => int256) private _balances; // signed int, may be negative!
+    mapping(address => mapping(address => uint256)) private _allowed;
+
+    uint256 private _totalSupply;
+
+    DET det;
+    IERC20 dai;
+    mapping(address => uint256) detHolderBorrowedCDAI;    // keeps track of cdai generated for det holders
+    mapping(address => uint256) debtTimers; // time of foreclosure for open debts
+
+    uint public detValue;
+    uint public detDivider;
+
+    event DebtSettled(address detHolder);
+    event Debt(address detHolder, int amount, uint mustBePaidBy);
+    event ValueChanged(uint daiBalance, uint detValue);
+    event Foreclosed(address detHolder, address sender, uint detAmount);
+
+    constructor() public {
+        det = DET(msg.sender);
+        detDivider = 10 * det.totalSupply();
+        detValue = 0;
+    }
+
+    function deposit(uint amount) public {
+        require(dai.transferFrom(msg.sender, address(this), amount), "DAI deposit failed");
+        _mint(msg.sender, amount);
+        if (_balances[msg.sender] >= 0 && debtTimers[msg.sender] != 0) {
+            debtTimers[msg.sender] = 0;
+            emit DebtSettled(msg.sender);
+        }
+        uint daiBalance = dai.balanceOf(address(this));
+        detValue = daiBalance.div(detDivider);
+        emit ValueChanged(daiBalance, detValue);
+    }
+
+    function withdraw(uint amount) {
+        require(amount <= _balances[msg.sender], "Insufficient funds");
+        _burn(msg.sender, amount);
+        require(dai.transfer(msg.sender, amount), "DAI transfer back to sender failed");
+        uint daiBalance = dai.balanceOf(address(this));
+        detValue = daiBalance.div(detDivider);
+        emit ValueChanged(daiBalance, detValue);
+    }
+
+    function updateDETHolderBalance(address detHolder){
+        uint detHolderBalance = det.balanceOf(detHolder);
+        require(detHolderBalance > 0, "Insufficient funds");
+        uint currentValue = dai.balanceOf(address(this)).mul(detHolderBalance).div(detDivider);
+        int diff = currentValue - detHolderBorrowedCDAI[detHolder];
+        detHolderBorrowedCDAI[detHolder] = currentValue;
+        // TBD: maybe use if (diff > 0) SafeAdd else SafeSub(-diff)
+        _balances[detHolder] += diff;
+        if (balances[detHolder] < 0 && debtTimers[detHolder] == 0) {
+            uint mustBePaidBy = now + 1 hours;
+            debtTimers[detHolder] = mustBePaidBy;
+            emit Debt(detHolder, _balances[detHolder], mustBePaidBy);
+        }
+    }
+
+    function forecloseDET(address detHolder, uint amount) public {
+        updateDETHolderBalance(detHolder);
+        require(debtTimers[detHolder] > 0 && debtTimers[detHolder] < now, "Not due date yet");
+        require(_balances[detHolder] + amount <= 0, "DET owner no in debt");
+        require(_balances[msg.sender] >= amount && det.balanceOf(detHolder) >= amount.div(detValue), "Sender doesn't have enough cDAI to foreclose DET");
+        uint detAmount = amount.div(detValue);
+        det.foreclose(detHolder, msg.sender, detAmount);
+        emit Foreclosed(detHolder, msg.sender, detAmount);
+        // Debt fully settled?
+        if (_balances[detHolder] + amount >= 0) {
+            debtTimers[detHolder] = 0;
+            emit DebtSettled(detHolder);
+        }
+    }
+
+    function transferByDET(address from, address to, uint detAmount) public {
+        require(msg.sender == address(det), "Only DET contract can all this function");
+        uint amount = detAmount.mul(detValue);
+        // Ensure that balance is updated to current DET value
+        updateDETHolderBalance(from);
+        updateDETHolderBalance(to);
+        require(amount <= _balances[from], "Insufficient funds");
+        _balances[from].sub(amount);
+        _balances[to].add(amount);
+
+    }
+
+    function totalSupply() public view returns (uint256) {
+        return _totalSupply;
+    }
+
+    function balanceOf(address owner) public view returns (uint256) {
+        return _balances[owner];
+    }
+
+    /**
+     * @dev Function to check the amount of tokens that an owner allowed to a spender.
+     * @param owner address The address which owns the funds.
+     * @param spender address The address which will spend the funds.
+     * @return A uint256 specifying the amount of tokens still available for the spender.
+     */
+    function allowance(
+        address owner,
+        address spender
+    )
+    public
+    view
+    returns (uint256)
+    {
+        return _allowed[owner][spender];
+    }
+
+    /**
+    * @dev Transfer token for a specified address
+    * @param to The address to transfer to.
+    * @param value The amount to be transferred.
+    */
+    function transfer(address to, uint256 value) public returns (bool) {
+        require(value <= _balances[msg.sender]);
+        require(to != address(0));
+
+        _balances[msg.sender] = _balances[msg.sender].sub(value);
+        _balances[to] = _balances[to].add(value);
+        emit Transfer(msg.sender, to, value);
+        return true;
+    }
+
+    /**
+     * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+     * Beware that changing an allowance with this method brings the risk that someone may use both the old
+     * and the new allowance by unfortunate transaction ordering. One possible solution to mitigate this
+     * race condition is to first reduce the spender's allowance to 0 and set the desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     * @param spender The address which will spend the funds.
+     * @param value The amount of tokens to be spent.
+     */
+    function approve(address spender, uint256 value) public returns (bool) {
+        require(spender != address(0));
+
+        _allowed[msg.sender][spender] = value;
+        emit Approval(msg.sender, spender, value);
+        return true;
+    }
+
+    /**
+     * @dev Transfer tokens from one address to another
+     * @param from address The address which you want to send tokens from
+     * @param to address The address which you want to transfer to
+     * @param value uint256 the amount of tokens to be transferred
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 value
+    )
+    public
+    returns (bool)
+    {
+        require(value <= _balances[from]);
+        require(value <= _allowed[from][msg.sender]);
+        require(to != address(0));
+
+        _balances[from] = _balances[from].sub(value);
+        _balances[to] = _balances[to].add(value);
+        _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(value);
+        emit Transfer(from, to, value);
+        return true;
+    }
+
+    /**
+     * @dev Increase the amount of tokens that an owner allowed to a spender.
+     * approve should be called when allowed_[_spender] == 0. To increment
+     * allowed value is better to use this function to avoid 2 calls (and wait until
+     * the first transaction is mined)
+     * From MonolithDAO Token.sol
+     * @param spender The address which will spend the funds.
+     * @param addedValue The amount of tokens to increase the allowance by.
+     */
+    function increaseAllowance(
+        address spender,
+        uint256 addedValue
+    )
+    public
+    returns (bool)
+    {
+        require(spender != address(0));
+
+        _allowed[msg.sender][spender] = (
+        _allowed[msg.sender][spender].add(addedValue));
+        emit Approval(msg.sender, spender, _allowed[msg.sender][spender]);
+        return true;
+    }
+
+    /**
+     * @dev Decrease the amount of tokens that an owner allowed to a spender.
+     * approve should be called when allowed_[_spender] == 0. To decrement
+     * allowed value is better to use this function to avoid 2 calls (and wait until
+     * the first transaction is mined)
+     * From MonolithDAO Token.sol
+     * @param spender The address which will spend the funds.
+     * @param subtractedValue The amount of tokens to decrease the allowance by.
+     */
+    function decreaseAllowance(
+        address spender,
+        uint256 subtractedValue
+    )
+    public
+    returns (bool)
+    {
+        require(spender != address(0));
+
+        _allowed[msg.sender][spender] = (
+        _allowed[msg.sender][spender].sub(subtractedValue));
+        emit Approval(msg.sender, spender, _allowed[msg.sender][spender]);
+        return true;
+    }
+
+    /**
+     * @dev Internal function that mints an amount of the token and assigns it to
+     * an account. This encapsulates the modification of balances such that the
+     * proper events are emitted.
+     * @param account The account that will receive the created tokens.
+     * @param amount The amount that will be created.
+     */
+    function _mint(address account, uint256 amount) internal {
+        require(account != 0);
+        _totalSupply = _totalSupply.add(amount);
+        _balances[account] = _balances[account].add(amount);
+        emit Transfer(address(0), account, amount);
+    }
+
+    /**
+     * @dev Internal function that burns an amount of the token of a given
+     * account.
+     * @param account The account whose tokens will be burnt.
+     * @param amount The amount that will be burnt.
+     */
+    function _burn(address account, uint256 amount) internal {
+        require(account != 0);
+        require(amount <= _balances[account]);
+
+        _totalSupply = _totalSupply.sub(amount);
+        _balances[account] = _balances[account].sub(amount);
+        emit Transfer(account, address(0), amount);
+    }
+
+    /**
+     * @dev Internal function that burns an amount of the token of a given
+     * account, deducting from the sender's allowance for said account. Uses the
+     * internal burn function.
+     * @param account The account whose tokens will be burnt.
+     * @param amount The amount that will be burnt.
+     */
+    function _burnFrom(address account, uint256 amount) internal {
+        require(amount <= _allowed[account][msg.sender]);
+
+        // Should https://github.com/OpenZeppelin/zeppelin-solidity/issues/707 be accepted,
+        // this function needs to emit an event with the updated approval.
+        _allowed[account][msg.sender] = _allowed[account][msg.sender].sub(
+            amount);
+        _burn(account, amount);
+    }
+
+
+}
