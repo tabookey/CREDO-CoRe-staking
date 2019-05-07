@@ -27,6 +27,7 @@ pragma solidity >=0.4.0 <0.6.0;
 
 import "./IERC20.sol";
 import "./SafeMath.sol";
+import "./cDAI.sol";
 /*
  * Based on open-zeppelin implementation of ERC20 tokens:
  * https://github.com/OpenZeppelin/openzeppelin-solidity/blob/9b3710465583284b8c4c5d2245749246bb2e0094/contracts/token/ERC20/ERC20.sol
