@@ -43,7 +43,7 @@
 
 pragma solidity >=0.4.0 <0.6.0;
 
-import "./IERC20.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 
 contract BalanceTracker {
 
