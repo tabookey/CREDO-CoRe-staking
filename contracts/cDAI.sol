@@ -96,7 +96,7 @@ contract cDAI is IERC20 {
         detValue = 0;
     }
 
-    function deposit(uint amount) public {
+    function deposit(uint248 amount) public {
         require(dai.transferFrom(msg.sender, address(this), amount), "DAI deposit failed");
         _mint(msg.sender, amount);
         if (_balances[msg.sender] >= 0 && debtTimers[msg.sender] != 0) {
@@ -108,7 +108,7 @@ contract cDAI is IERC20 {
         emit ValueChanged(daiBalance, detValue);
     }
 
-    function withdraw(uint128 amount) public {
+    function withdraw(uint248 amount) public {
         require(amount <= _balances[msg.sender], "Insufficient funds");
         _burn(msg.sender, amount);
         require(dai.transfer(msg.sender, amount), "DAI transfer back to sender failed");
@@ -133,12 +133,12 @@ contract cDAI is IERC20 {
         }
     }
 
-    function forecloseDET(address detHolder, uint128 amount) public {
+    function forecloseDET(address detHolder, uint248 amount) public {
         updateDETHolderBalance(detHolder);
         require(debtTimers[detHolder] > 0 && debtTimers[detHolder] < now, "Not due date yet");
         require(_balances[detHolder] + amount <= 0, "DET owner no in debt");
         require(_balances[msg.sender] >= amount && det.balanceOf(detHolder) >= amount / detValue, "Sender doesn't have enough cDAI to foreclose DET");
-        uint detAmount = amount/detValue;
+        uint detAmount = amount / detValue;
         det.foreclose(detHolder, msg.sender, detAmount);
         emit Foreclosed(detHolder, msg.sender, detAmount);
         // Debt fully settled?
@@ -148,7 +148,7 @@ contract cDAI is IERC20 {
         }
     }
 
-    function transferByDET(address from, address to, uint128 detAmount) public {
+    function transferByDET(address from, address to, uint248 detAmount) public {
         require(msg.sender == address(det), "Only DET contract can all this function");
         uint amount = uint(detAmount).mul(detValue);
         int iamount = int(amount);
@@ -158,7 +158,7 @@ contract cDAI is IERC20 {
         updateDETHolderBalance(to);
         require(iamount <= _balances[from], "Insufficient funds");
         _balances[from] -= iamount;
-        require( iamount + _balances[to] >= iamount);
+        require(iamount + _balances[to] >= iamount);
         _balances[to] += iamount;
 
     }
@@ -195,11 +195,13 @@ contract cDAI is IERC20 {
     * @param value The amount to be transferred.
     */
     function transfer(address to, uint256 value) public returns (bool) {
-        require(value <= _balances[msg.sender]);
+        int ivalue = int(value);
+        require(ivalue > 0, "Transfer too large");
         require(to != address(0));
-
-        _balances[msg.sender] = _balances[msg.sender].sub(value);
-        _balances[to] = _balances[to].add(value);
+        require(ivalue <= _balances[msg.sender]);
+        _balances[msg.sender] -= ivalue;
+        require(_balances[to] + ivalue >= _balances[to]);
+        _balances[to] += ivalue;
         emit Transfer(msg.sender, to, value);
         return true;
     }
@@ -235,12 +237,15 @@ contract cDAI is IERC20 {
     public
     returns (bool)
     {
-        require(value <= _balances[from]);
-        require(value <= _allowed[from][msg.sender]);
+        int ivalue = int(value);
+        require(ivalue > 0, "Transfer too large");
         require(to != address(0));
+        require(value <= _allowed[from][msg.sender]);
+        require(ivalue <= _balances[from]);
+        _balances[from] -= ivalue;
+        require(_balances[to] + ivalue >= _balances[to]);
+        _balances[to] += ivalue;
 
-        _balances[from] = _balances[from].sub(value);
-        _balances[to] = _balances[to].add(value);
         _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(value);
         emit Transfer(from, to, value);
         return true;
@@ -301,10 +306,11 @@ contract cDAI is IERC20 {
      * @param account The account that will receive the created tokens.
      * @param amount The amount that will be created.
      */
-    function _mint(address account, uint256 amount) internal {
-        require(account != 0);
+    function _mint(address account, uint248 amount) internal {
+        require(account != address(0));
         _totalSupply = _totalSupply.add(amount);
-        _balances[account] = _balances[account].add(amount);
+        require(_balances[account] + amount >= _balances[account]);
+        _balances[account] += amount;
         emit Transfer(address(0), account, amount);
     }
 
@@ -314,30 +320,14 @@ contract cDAI is IERC20 {
      * @param account The account whose tokens will be burnt.
      * @param amount The amount that will be burnt.
      */
-    function _burn(address account, uint256 amount) internal {
-        require(account != 0);
+    function _burn(address account, uint248 amount) internal {
+        require(account != address(0));
         require(amount <= _balances[account]);
 
         _totalSupply = _totalSupply.sub(amount);
-        _balances[account] = _balances[account].sub(amount);
+        require(_balances[account] > 0);
+        _balances[account] = int(uint(_balances[account]).sub(amount));
         emit Transfer(account, address(0), amount);
-    }
-
-    /**
-     * @dev Internal function that burns an amount of the token of a given
-     * account, deducting from the sender's allowance for said account. Uses the
-     * internal burn function.
-     * @param account The account whose tokens will be burnt.
-     * @param amount The amount that will be burnt.
-     */
-    function _burnFrom(address account, uint256 amount) internal {
-        require(amount <= _allowed[account][msg.sender]);
-
-        // Should https://github.com/OpenZeppelin/zeppelin-solidity/issues/707 be accepted,
-        // this function needs to emit an event with the updated approval.
-        _allowed[account][msg.sender] = _allowed[account][msg.sender].sub(
-            amount);
-        _burn(account, amount);
     }
 
 
