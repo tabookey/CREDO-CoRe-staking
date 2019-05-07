@@ -48,9 +48,9 @@ contract DET is IERC20 {
         emit Transfer(address(0), account, amount);
     }
 
-    constructor() public {
+    constructor(address dai) public {
         _mint(msg.sender, 100);
-        cdai = new cDAI();
+        cdai = new cDAI(dai, totalSupply());
     }
 
     // Used by cDAI_contract to foreclose DET of investors with negative cDAI balance.

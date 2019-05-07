@@ -90,9 +90,10 @@ contract cDAI is IERC20 {
     event ValueChanged(uint daiBalance, uint detValue);
     event Foreclosed(address detHolder, address sender, uint detAmount);
 
-    constructor() public {
+    constructor(address _dai, uint supply) public {
+        dai = IERC20(_dai);
         det = DET(msg.sender);
-        detDivider = 10 * det.totalSupply();
+        detDivider = 10 * supply;
         detValue = 0;
     }
 
