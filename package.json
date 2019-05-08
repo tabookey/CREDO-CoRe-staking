@@ -7,7 +7,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test-js",
+    "test-js": "run-with-testrpc -p 8544 -l 8000000 './node_modules/.bin/truffle --network npmtest test'"
   },
   "repository": {
     "type": "git",
@@ -21,5 +22,11 @@
   "homepage": "https://github.com/tabookey/hackathon#readme",
   "dependencies": {
     "openzeppelin-solidity": "^2.1.2"
+  },
+  "devDependencies": {
+    "ganache-cli": "^6.2.5",
+    "run-with-testrpc": "^0.3.0",
+    "solc": "^0.5.2",
+    "truffle": "^5.0.2"
   }
 }
