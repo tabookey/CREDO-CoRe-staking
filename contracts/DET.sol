@@ -40,6 +40,9 @@ contract DET is IERC20 {
     uint256 private _totalSupply;
     cDAI cdai;
 
+    function get_cDAI() view public returns (address) {
+        return address(cdai);
+    }
 
     function _mint(address account, uint256 amount) internal {
         require(account != address(0));
