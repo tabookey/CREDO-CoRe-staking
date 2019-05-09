@@ -4,7 +4,6 @@
 //mapping(address => uint32) participants // maps participant address to its array position
 //address[] participants_array
 //
-//unstake_delay = 1 hour
 //stake_size = 10 cDAI
 //address next_caller = 0
 //uint last_recorded_time = 0
@@ -56,7 +55,6 @@ contract BalanceTracker {
 
     event Recorded(uint timestamp, uint balance, address nextCaller);
 
-    uint unstakeDelay = 1 hours; // DO WE REALLY NEED IT?
     uint stakeSize = 10;// cDAI
     address nextCaller = address(0);
     uint lastRecordedTime = 0;
@@ -85,6 +83,7 @@ contract BalanceTracker {
     }
 
     function unstake_internal(address participant) private {
+        require(participantsArray[participantsAddrToIndex[participant]] == participant, "Not a staked participant");
         //    remove participant from participants (move last array member to sender position, shrink array, delete from participants mapping)
         uint index = participantsAddrToIndex[participant];
         participantsArray[index] = participantsArray[participantsArray.length - 1];
@@ -101,7 +100,7 @@ contract BalanceTracker {
     }
 
     function slash(address participant) public {
-        require(lastRecordedTime > 10 minutes && nextCaller == participant, "Not enough time passed or wrong participant address given");
+        require(lastRecordedTime > 10 minutes && participant != address(0) && nextCaller == participant, "Not enough time passed or wrong participant address given");
         unstake_internal(participant);
     }
 
@@ -114,11 +113,12 @@ contract BalanceTracker {
         nextCaller = participantsArray[uint(blockhash(block.number - 1)) % participantsArray.length];
         lastRecordedTime = now;
         emit Recorded(lastRecordedTime, address(this).balance, nextCaller);
-        msg.sender.transfer(payout);
+        if (payout > 0)
+            msg.sender.transfer(payout);    // Maybe change to DAI instead of ETH
     }
 
-    function read(uint time) public payable returns (uint) {
-        require(msg.value > fee, "Insufficient fee");
+    function read(uint time) public payable returns (uint) {    // Maybe change to DAI instead of ETH
+        require(msg.value >= fee, "Insufficient fee");
         return recordedData[time];
     }
 }
