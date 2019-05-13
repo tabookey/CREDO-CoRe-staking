@@ -228,7 +228,7 @@ contract cDAI is IERC20 {
      * @param value The amount of tokens to be spent.
      */
     function approve(address spender, uint256 value) public returns (bool) {
-        require(spender != address(0));
+        require(spender != address(0), "Spender cannot be address 0x0");
 
         _allowed[msg.sender][spender] = value;
         emit Approval(msg.sender, spender, value);
@@ -251,9 +251,9 @@ contract cDAI is IERC20 {
     {
         int ivalue = int(value);
         require(ivalue > 0, "Transfer too large");
-        require(to != address(0));
-        require(value <= _allowed[from][msg.sender]);
-        require(ivalue <= _balances[from]);
+        require(to != address(0), "Cannot transfer to 0x0");
+        require(value <= _allowed[from][msg.sender], "value larger than allowed");
+        require(ivalue <= _balances[from], "value larger than balance");
         _balances[from] -= ivalue;
         require(_balances[to] + ivalue >= _balances[to]);
         _balances[to] += ivalue;
