@@ -62,11 +62,12 @@ contract DET is IERC20 {
 
     function _transfer(address from, address to, uint value) internal {
 
-        require(value <= _balances[from], "Insufficient balance");
+        require(value <= _balances[from], "Insufficient DET balance");
         require(to != address(0), "Cannot transfer to adrress(0)");
+        // Transfer the cDAI associated with the transferred DET. Requires the cDAI to be "free" (not staked or withdrawn)
+        _balances[from] = _balances[from].sub(value);
+        _balances[to] = _balances[to].add(value);
         cdai.transferByDET(from, to, value);
-        _balances[from].sub(value);
-        _balances[to].add(value);
         emit Transfer(from, to, value);
 
     }

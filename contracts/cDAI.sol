@@ -82,19 +82,17 @@ contract cDAI is IERC20 {
     mapping(address => uint256) detHolderBorrowedCDAI;    // keeps track of cdai generated for det holders
     mapping(address => uint256) debtTimers; // time of foreclosure for open debts
 
-    uint public detValue;
     uint public detDivider;
 
     event DebtSettled(address detHolder);
     event Debt(address detHolder, int amount, uint mustBePaidBy);
-    event ValueChanged(uint daiBalance, uint detValue);
+    event ValueChanged(uint daiBalance, uint detDivider);
     event Foreclosed(address detHolder, address sender, uint detAmount);
 
     constructor(address _dai, uint supply) public {
         dai = IERC20(_dai);
         det = DET(msg.sender);
         detDivider = 10 * supply;
-        detValue = 0;
     }
 
     function deposit(uint amount) public {
@@ -106,8 +104,7 @@ contract cDAI is IERC20 {
             emit DebtSettled(msg.sender);
         }
         uint daiBalance = dai.balanceOf(address(this));
-        detValue = daiBalance.div(detDivider);
-        emit ValueChanged(daiBalance, detValue);
+        emit ValueChanged(daiBalance, detDivider);
     }
 
     function withdraw(uint amount) public {
@@ -116,19 +113,29 @@ contract cDAI is IERC20 {
         _burn(msg.sender, amount);
         require(dai.transfer(msg.sender, amount), "DAI transfer back to sender failed");
         uint daiBalance = dai.balanceOf(address(this));
-        detValue = daiBalance.div(detDivider);
-        emit ValueChanged(daiBalance, detValue);
+        emit ValueChanged(daiBalance, detDivider);
     }
 
+    event DuringUpdate(uint currentValue, uint detHolderBorrowedCDAI, address detHolder, int detHolderBalance);
+    //  can be called by anyone. updates cDAI balances of a DET holder after ValueChange events.
+    //  On value increase, DET holder calls it to mint cDAI. On value decrease, anyone may call it to create a debt, and foreclose DET is the holder does not settle it.
     function updateDETHolderBalance(address detHolder) public {
         uint detHolderBalance = det.balanceOf(detHolder);
-        require(detHolderBalance > 0, "Insufficient funds");
+        //        require(detHolderBalance > 0, "Insufficient DET balance");
         uint currentValue = dai.balanceOf(address(this)).mul(detHolderBalance).div(detDivider);
+                emit DuringUpdate(currentValue, detHolderBorrowedCDAI[detHolder], detHolder, _balances[detHolder]);
         // TODO: check this conversion!
         int diff = int(currentValue) - int(detHolderBorrowedCDAI[detHolder]);
         detHolderBorrowedCDAI[detHolder] = currentValue;
         // TBD: maybe use if (diff > 0) SafeAdd else SafeSub(-diff)
-        _balances[detHolder] += diff;
+        if (diff > 0) {
+            _mint(detHolder, uint(diff));
+        } else if (diff < 0) {
+            _burn(detHolder, uint(-diff));
+            //            emit DuringUpdate(currentValue, detHolderBorrowedCDAI[detHolder], detHolder, diff);
+        }
+
+        //        _balances[detHolder] += diff;
         if (_balances[detHolder] < 0 && debtTimers[detHolder] == 0) {
             uint mustBePaidBy = now + 1 hours;
             debtTimers[detHolder] = mustBePaidBy;
@@ -138,11 +145,12 @@ contract cDAI is IERC20 {
 
     function forecloseDET(address detHolder, uint amount) public {
         require(int(amount) > 0, "amount too large");
+        uint daiBalance = dai.balanceOf(address(this));
         updateDETHolderBalance(detHolder);
         require(debtTimers[detHolder] > 0 && debtTimers[detHolder] < now, "Not due date yet");
         require(_balances[detHolder] + int(amount) <= 0, "DET owner no in debt");
-        require(_balances[msg.sender] >= int(amount) && det.balanceOf(detHolder) >= amount / detValue, "Sender doesn't have enough cDAI to foreclose DET");
-        uint detAmount = amount / detValue;
+        require(_balances[msg.sender] >= int(amount) && det.balanceOf(detHolder) >= amount * detDivider / daiBalance, "Sender doesn't have enough cDAI to foreclose DET");
+        uint detAmount = amount * detDivider / daiBalance;
         det.foreclose(detHolder, msg.sender, detAmount);
         emit Foreclosed(detHolder, msg.sender, detAmount);
         // Debt fully settled?
@@ -152,19 +160,21 @@ contract cDAI is IERC20 {
         }
     }
 
+    event BeforeUpdate(uint detValue, address from, address to, int fromBalance, int toBalance, int iamount);
+    event AfterUpdate(uint detValue, address from, address to, int fromBalance, int toBalance, int iamount);
+
     function transferByDET(address from, address to, uint detAmount) public {
-        require(msg.sender == address(det), "Only DET contract can all this function");
-        uint amount = detAmount.mul(detValue);
+        require(msg.sender == address(det), "Only DET contract can call this function");
+        uint daiBalance = dai.balanceOf(address(this));
+        uint amount = detAmount.mul(daiBalance).div(detDivider);
         int iamount = int(amount);
-        require(iamount >= 0);
+//                emit BeforeUpdate(detValue, from, to, _balances[from], _balances[to], iamount);
+        require(iamount >= 0, "Amount too large");
         // Ensure that balance is updated to current DET value
         updateDETHolderBalance(from);
+        require(iamount <= _balances[from], "Insufficient cDai balance ");
         updateDETHolderBalance(to);
-        require(iamount <= _balances[from], "Insufficient funds");
-        _balances[from] -= iamount;
-        require(iamount + _balances[to] >= iamount);
-        _balances[to] += iamount;
-
+//        emit AfterUpdate(detValue, from, to, _balances[from], _balances[to], iamount);
     }
 
     function totalSupply() public view returns (uint256) {
@@ -210,9 +220,9 @@ contract cDAI is IERC20 {
         int ivalue = int(value);
         require(ivalue > 0, "Transfer too large");
         require(to != address(0));
-        require(ivalue <= _balances[msg.sender]);
+        require(ivalue <= _balances[msg.sender], "Insufficient balance");
         _balances[msg.sender] -= ivalue;
-        require(_balances[to] + ivalue >= _balances[to]);
+        require(_balances[to] + ivalue >= _balances[to], "Balance Overflow");
         _balances[to] += ivalue;
         emit Transfer(msg.sender, to, value);
         return true;
@@ -322,7 +332,7 @@ contract cDAI is IERC20 {
         require(int(amount) > 0, "Amount too large");
         require(account != address(0));
         _totalSupply = _totalSupply.add(amount);
-        require(_balances[account] + int(amount) >= _balances[account]);
+        require(_balances[account] + int(amount) >= _balances[account], "Balance overflow ");
         _balances[account] += int(amount);
         emit Transfer(address(0), account, amount);
     }
@@ -335,12 +345,11 @@ contract cDAI is IERC20 {
      * @param amount The amount that will be burnt.
      */
     function _burn(address account, uint amount) internal {
+        require(int(amount) > 0, "Amount too large");
         require(account != address(0));
-        require(int(amount) <= _balances[account]);
 
         _totalSupply = _totalSupply.sub(amount);
-        require(_balances[account] > 0);
-        _balances[account] = int(uint(_balances[account]).sub(amount));
+        _balances[account] -= int(amount);
         emit Transfer(account, address(0), amount);
     }
 
