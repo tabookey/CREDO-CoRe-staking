@@ -149,12 +149,13 @@ contract cDAI is IERC20 {
         updateDETHolderBalance(detHolder);
         require(debtTimers[detHolder] > 0 && debtTimers[detHolder] < now, "Not due date yet");
         require(_balances[detHolder] + int(amount) <= 0, "DET owner no in debt");
-        require(_balances[msg.sender] >= int(amount) && det.balanceOf(detHolder) >= amount * detDivider / daiBalance, "Sender doesn't have enough cDAI to foreclose DET");
         uint detAmount = amount * detDivider / daiBalance;
+        require(_balances[msg.sender] >= int(amount) && det.balanceOf(detHolder) >= detAmount, "Sender doesn't have enough cDAI to foreclose DET");
+        transfer(detHolder, amount);
         det.foreclose(detHolder, msg.sender, detAmount);
         emit Foreclosed(detHolder, msg.sender, detAmount);
         // Debt fully settled?
-        if (_balances[detHolder] + int(amount) >= 0) {
+        if (_balances[detHolder] >= 0) {
             debtTimers[detHolder] = 0;
             emit DebtSettled(detHolder);
         }

@@ -57,30 +57,32 @@ contract DET is IERC20 {
     // Used by cDAI_contract to foreclose DET of investors with negative cDAI balance.
     function foreclose(address from, address to, uint amount) public {
         require(msg.sender == address(cdai));
-        _transfer(from, to, amount);
+        _transfer(from, to, amount, false);
     }
 
-    function _transfer(address from, address to, uint value) internal {
+    function _transfer(address from, address to, uint value, bool alsoTransferCdai) internal {
 
         require(value <= _balances[from], "Insufficient DET balance");
         require(to != address(0), "Cannot transfer to adrress(0)");
         // Transfer the cDAI associated with the transferred DET. Requires the cDAI to be "free" (not staked or withdrawn)
         _balances[from] = _balances[from].sub(value);
         _balances[to] = _balances[to].add(value);
-        cdai.transferByDET(from, to, value);
+        if (alsoTransferCdai){
+            cdai.transferByDET(from, to, value);
+        }
         emit Transfer(from, to, value);
 
     }
 
     function transferFrom(address from, address to, uint256 value) public returns (bool) {
         require(value <= _allowed[from][msg.sender]);
-        _transfer(from, to, value);
+        _transfer(from, to, value, true);
         _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(value);
         return true;
     }
 
     function transfer(address to, uint256 value) public returns (bool) {
-        _transfer(msg.sender, to, value);
+        _transfer(msg.sender, to, value, true);
         return true;
     }
 
