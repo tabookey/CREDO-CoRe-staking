@@ -9,7 +9,7 @@ module.exports = async function(deployer) {
 	await deployer.deploy(DET, DAI.address);
 	// TODO: get deployed cDAI address and pass it to the deploy instead of this hardcoded address
 	det = await DET.deployed();
-	let cdaiAddress = await det.get_cDAI();
+	let cdaiAddress = await det.cdai();
 	await deployer.deploy(BalanceTracker, "0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1",cdaiAddress)
 	await deployer.deploy(TestUtil, BalanceTracker.address);
 };

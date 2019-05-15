@@ -9,9 +9,10 @@ contract('DET', function (accounts) {
         det = await DET.deployed();
     })
 
-    it ("should return cDAI address", async function(){
-        let cdaiAddress = await det.get_cDAI();
+    it("should return cDAI address", async function () {
+        let cdaiAddress = await det.cdai();
         assert.equal(42, cdaiAddress.length)
+
     });
     // TODO: find some logic that is testable in DET
 });

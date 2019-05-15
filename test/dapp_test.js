@@ -19,7 +19,7 @@ contract('BalanceTracker', function (accounts) {
     before(async function () {
         dai = await DAI.deployed();
         det = await DET.deployed();
-        let cdaiAddress = await det.get_cDAI();
+        let cdaiAddress = await det.cdai();
         cdai = await CDAI.at(cdaiAddress);
         balanceTracker = await BalanceTracker.deployed();
 

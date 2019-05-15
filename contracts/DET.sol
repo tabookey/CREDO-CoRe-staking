@@ -38,11 +38,9 @@ contract DET is IERC20 {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowed;
     uint256 private _totalSupply;
-    cDAI cdai;
+    cDAI public cdai;
 
-    function get_cDAI() view public returns (address) {
-        return address(cdai);
-    }
+    uint constant DET_INITIAL_SUPPLY = 100;
 
     function _mint(address account, uint256 amount) internal {
         require(account != address(0));
@@ -52,7 +50,7 @@ contract DET is IERC20 {
     }
 
     constructor(address dai) public {
-        _mint(msg.sender, 100);
+        _mint(msg.sender, DET_INITIAL_SUPPLY);
         cdai = new cDAI(dai, totalSupply());
     }
 
