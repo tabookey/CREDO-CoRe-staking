@@ -58,8 +58,8 @@ contract BalanceTracker {
     event Unstaked(address participant);
 
     uint stakeSize = 10;// cDAI
-    address nextCaller = address(0);
-    uint lastRecordedTime = 0;
+    address public nextCaller = address(0);
+    uint public lastRecordedTime = 0;
     uint fee = 0.0001 ether;
 
     constructor(address _target, address _cDAI) public {
@@ -113,7 +113,8 @@ contract BalanceTracker {
     }
 
     function slash(address participant) public {
-        require(now - lastRecordedTime > 10 minutes && participant != address(0) && nextCaller == participant, "Not enough time passed or wrong participant address given");
+        require(now - lastRecordedTime > 5 seconds, "Not enough time passed");
+        require(participant != address(0) && nextCaller == participant, "Wrong participant address given");
         unstake_internal(participant);
     }
 

@@ -12,7 +12,7 @@ var accounts;
 
 const stakeSize = 10;
 // 10 minutes in seconds
-const timeBeforeSlash = 10//*60;
+const timeBeforeSlash = 7//*60;
 var selfAccount;
 
 web3 = new Web3(new Web3.providers.WebsocketProvider('ws://localhost:8545'));
@@ -20,12 +20,34 @@ web3 = new Web3(new Web3.providers.WebsocketProvider('ws://localhost:8545'));
 module.exports = async function (callback) {
     await setup();
 
+    // handle cmdline params
+    let i = Number(argv.account);
+    selfAccount = accounts[i];
+    if (!Number.isInteger(i) || selfAccount == undefined) {
+        console.log("Invalid account");
+        process.exit(1);
+    }
+    console.log("Using account", argv.account, "address", selfAccount);
+
+    if (argv.sponsor) {
+        await getDAI(1000);
+    }
+
+    if (argv.status) {
+        console.log("dai balance:", (await dai.balanceOf(selfAccount)).toString())
+        console.log("cdai balance:", (await cdai.balanceOf(selfAccount)).toString())
+        console.log("eth balance:", (await web3.eth.getBalance(selfAccount)).toString())
+    }
+
+    if (argv.unstake) {
+        await unstake();
+    }
+
     if (argv.work) {
         try {
-            await stake();
-
             setNextCallerListener();
-            triggerOnce();
+            await stake();
+            // triggerOnce();
             let i = 0;
             while (true) {
                 await sleep(3000);
@@ -67,23 +89,6 @@ async function setup() {
     console.log("now", Date.now());
     console.dir(argv);
 
-    // handle cmdline params
-    let i = Number(argv.account);
-    selfAccount = accounts[i];
-    if (!Number.isInteger(i) || selfAccount == undefined) {
-        console.log("Invalid account");
-        process.exit(1);
-    }
-    console.log("Using account", argv.account, "address", selfAccount);
-
-    if (argv.sponsor) {
-        await getDAI(1000);
-    }
-    if (argv.status) {
-        console.log("dai balance:",(await dai.balanceOf(selfAccount)).toString())
-        console.log("cdai balance:",(await cdai.balanceOf(selfAccount)).toString())
-        console.log("eth balance:",(await web3.eth.getBalance(selfAccount)).toString())
-    }
 }
 
 async function sleep(ms) {
@@ -93,7 +98,8 @@ async function sleep(ms) {
 async function setNextCallerListener() {
     console.log("setNextCallerListener started!");
     const recordedEvent = balanceTracker.Recorded(cbRecorded);
-    await console.log("setNextCallerListener ended!");
+    console.log("setNextCallerListener ended!");
+
 
 }
 
@@ -102,6 +108,8 @@ async function cbRecorded(err, res) {
         console.log("cbRecorded Error", err);
         return;
     }
+    let isParticipant = await balanceTracker.isParticipant(selfAccount, {from: selfAccount});
+    if (!isParticipant) return;
     console.log("cbRecorded", res.args.nextCaller, res.args.timestamp.toNumber());
     let timePassedSinceBlock = (Date.now() / 1000 - res.args.timestamp.toNumber());
     let timeout = 1000 * Math.floor(timeBeforeSlash - timePassedSinceBlock);
@@ -110,14 +118,42 @@ async function cbRecorded(err, res) {
         console.log("cbRecorded setting task in", timeout, timePassedSinceBlock);
         await sleep(timeout);
         await triggerOnce();
+        shouldSlash = false;
     } else { // Not our turn, check if slashing is possible
-        if (timeout <= 0) {
-            await balanceTracker.slash(res.args.nextCaller, {from: selfAccount});
-            console.log("Slashed!");
+        console.log("Setting up slash data");
+        shouldSlash = true;
+        slashee = res.args.nextCaller;
+        console.log("cdai balance before:", (await cdai.balanceOf(selfAccount)).toString())
+        // await setTimeout(slash, timeout);
+        // await new Promise(r => setTimeout(slash, timeout));
 
-        }
+        let resolveAfterTimeout = function() {
+            console.log("starting slow promise");
+            return new Promise(resolve => {
+                setTimeout(function() {
+                    resolve("slow");
+                    console.log("Checking if slashable", slashee, shouldSlash, selfAccount);
+                    if (shouldSlash) {
+                        balanceTracker.slash(slashee, {from: selfAccount});
+                    }
+                    console.log("Slashed!");
+                }, timeout);
+            });
+        };
+        await resolveAfterTimeout();
+        console.log("cdai balance after:", (await cdai.balanceOf(selfAccount)).toString())
     }
 
+}
+
+function slash() {
+    let ret;
+    console.log("Checking if slashable", slashee, shouldSlash, selfAccount);
+    if (shouldSlash) {
+        ret = balanceTracker.slash(slashee, {from: selfAccount});
+    }
+    console.log("Slashed!");
+    return ret;
 }
 
 async function triggerOnce() {
@@ -140,7 +176,20 @@ async function stake() {
     let isParticipantAfter = await balanceTracker.isParticipant(selfAccount, {from: selfAccount});
     if (!isParticipantAfter) throw "Error: balanceTracker.isParticipant() returned false";
     console.log("Done staking", selfAccount);
+    await triggerOnce();
+}
 
+async function unstake() {
+    console.log("unstake!");
+    let isParticipantBefore = await balanceTracker.isParticipant(selfAccount, {from: selfAccount});
+    if (!isParticipantBefore) {
+        console.log("Not a staked participant");
+        return;
+    }
+    await balanceTracker.unstake({from: selfAccount});
+    let isParticipantAfter = await balanceTracker.isParticipant(selfAccount, {from: selfAccount});
+    if (isParticipantAfter) throw "Error: balanceTracker.isParticipant() returned true";
+    console.log("Done unstaking", selfAccount);
 }
 
 
