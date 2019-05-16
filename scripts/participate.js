@@ -15,7 +15,7 @@ const stakeSize = 10;
 const timeBeforeSlash = 7//*60;
 var selfAccount;
 
-web3 = new Web3(new Web3.providers.WebsocketProvider('ws://localhost:8545'));
+// web3 = new Web3(new Web3.providers.WebsocketProvider('ws://localhost:8545'));
 
 module.exports = async function (callback) {
     await setup();
@@ -123,37 +123,21 @@ async function cbRecorded(err, res) {
         console.log("Setting up slash data");
         shouldSlash = true;
         slashee = res.args.nextCaller;
-        console.log("cdai balance before:", (await cdai.balanceOf(selfAccount)).toString())
-        // await setTimeout(slash, timeout);
-        // await new Promise(r => setTimeout(slash, timeout));
-
-        let resolveAfterTimeout = function() {
-            console.log("starting slow promise");
-            return new Promise(resolve => {
-                setTimeout(function() {
-                    resolve("slow");
-                    console.log("Checking if slashable", slashee, shouldSlash, selfAccount);
-                    if (shouldSlash) {
-                        balanceTracker.slash(slashee, {from: selfAccount});
-                    }
-                    console.log("Slashed!");
-                }, timeout);
-            });
-        };
-        await resolveAfterTimeout();
-        console.log("cdai balance after:", (await cdai.balanceOf(selfAccount)).toString())
+        console.log("cdai balance before:", (await cdai.balanceOf(selfAccount)).toString());
+        await setTimeout(slash, timeout);
     }
 
 }
 
-function slash() {
-    let ret;
-    console.log("Checking if slashable", slashee, shouldSlash, selfAccount);
+async function slash() {
+    console.log("Checking if slashable");
     if (shouldSlash) {
-        ret = balanceTracker.slash(slashee, {from: selfAccount});
+        await balanceTracker.slash(slashee, {from: selfAccount});
+        console.log("Slashed!");
+        console.log("cdai balance after:", (await cdai.balanceOf(selfAccount)).toString());
+    }else {
+        console.log("Not slashable");
     }
-    console.log("Slashed!");
-    return ret;
 }
 
 async function triggerOnce() {
