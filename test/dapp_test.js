@@ -10,7 +10,7 @@ const increaseTime = testutils.increaseTime;
 
 contract('BalanceTracker', function (accounts) {
 
-    var dai, cdai, det;
+    var dai, cdai, det, balanceTracker;
 
     const stakeSize = 10;
 

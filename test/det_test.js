@@ -59,7 +59,7 @@ contract.only('DET', function (accounts) {
         console.log("dai total supply:", (await dai.totalSupply()).toString());
         console.log("cdai total supply:", (await cdai.totalSupply()).toString());
 
-        assert.equal(toDetBalance, amount);
+        assert.equal(toDetBalance.toString(), amount);
         assert.equal(fromBalanceBefore.toString(), fromBalanceAfter.add(web3.utils.toBN(amount)).toString());
 
         assert.equal(toCDaiBalance.toString(), amount);
@@ -99,9 +99,6 @@ contract.only('DET', function (accounts) {
         console.log("cdai total supply:", (await cdai.totalSupply()).toString());
         console.log("cdai contracts dai balance:", (await dai.balanceOf(cdai.address)).toString());
         await cdai.withdraw(amount, {from: from});
-        // we do this to overcome the issue that detValue is integer and can't represent fractions
-        // await dai.approve(cdai.address, 10 * amount, {from: accounts[0]});
-        // await cdai.deposit(10 * amount, {from: accounts[0]});
 
         assert.equal((await dai.balanceOf(from)).toString(), amount);
         assert.equal((await cdai.balanceOf(from)).toString(), 0);
