@@ -6,7 +6,7 @@ const testutils = require('./testutils.js')
 const assertErrorMessageCorrect = testutils.assertErrorMessageCorrect;
 const increaseTime = testutils.increaseTime;
 
-contract.only('DET', function (accounts) {
+contract('DET', function (accounts) {
 
     var det, cdai, dai;
 

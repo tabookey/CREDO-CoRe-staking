@@ -2,7 +2,8 @@ var DAI = artifacts.require("../contracts/DAI.sol");
 var CDAI = artifacts.require("../contracts/cDAI.sol");
 var DET = artifacts.require("../contracts/DET.sol");
 var BalanceTracker = artifacts.require("../contracts/BalanceTracker.sol");
-Web3 = require('web3')
+Web3 = require('web3');
+argv = require('minimist')(process.argv.slice(4));
 
 
 var err = 0;
@@ -12,27 +13,29 @@ var accounts;
 const stakeSize = 10;
 // 10 minutes in seconds
 const timeBeforeSlash = 10//*60;
-var from
+var selfAccount;
+
 web3 = new Web3(new Web3.providers.WebsocketProvider('ws://localhost:8545'));
-// date = new Date();
 
 module.exports = async function (callback) {
     await setup();
 
-    try {
-        await stake();
+    if (argv.work) {
+        try {
+            await stake();
 
-        setNextCallerListener();
-        triggerOnce();
-        let i = 0;
-        while (true) {
-            await sleep(3000);
-            console.log("HI!", i++, "now", Date.now() / 1000);
+            setNextCallerListener();
+            triggerOnce();
+            let i = 0;
+            while (true) {
+                await sleep(3000);
+                console.log("HI!", i++, "now", Date.now() / 1000);
+            }
+
+        } catch (e) {
+            console.log("Error:", e)
+            err = e;
         }
-
-    } catch (e) {
-        console.log("Error:", e)
-        err = e;
     }
 
     callback(err);
@@ -42,34 +45,45 @@ async function setup() {
     provider = new Web3.providers.WebsocketProvider('ws://localhost:8545');
     web3.setProvider(provider);
     web3.eth.setProvider(provider);
-    let message = process.argv[4];
 
     accounts = await web3.eth.getAccounts();
-    from = accounts[0];
+    daiOwner = accounts[0];
 
     dai = await DAI.deployed();
     det = await DET.deployed();
     let cdaiAddress = await det.cdai();
     cdai = await CDAI.at(cdaiAddress);
     balanceTracker = await BalanceTracker.deployed();
-    // balanceTracker.setProvider(provider);
 
     console.log("dai", dai.address);
     console.log("det", det.address);
     console.log("cdaiAddress", cdaiAddress);
     console.log("balanceTracker", balanceTracker.address);
     console.log("cdai", cdai.address);
-    console.log("message", message,typeof parseInt(message));
-    console.log("argv", process.argv);
     console.log("accounts", accounts);
 
-    // console.log("balanceTracker", balanceTracker.web3.setProvider);
     BalanceTracker.web3.setProvider(provider);
-    console.log("BalanceTracker", BalanceTracker.web3.setProvider);
-    // console.log("Web3.givenProvider", Web3.givenProvider,web3.eth.currentProvider);
     console.log("Web3.version", Web3.version, web3.version);
     console.log("now", Date.now());
+    console.dir(argv);
 
+    // handle cmdline params
+    let i = Number(argv.account);
+    selfAccount = accounts[i];
+    if (!Number.isInteger(i) || selfAccount == undefined) {
+        console.log("Invalid account");
+        process.exit(1);
+    }
+    console.log("Using account", argv.account, "address", selfAccount);
+
+    if (argv.sponsor) {
+        await getDAI(1000);
+    }
+    if (argv.status) {
+        console.log("dai balance:",(await dai.balanceOf(selfAccount)).toString())
+        console.log("cdai balance:",(await cdai.balanceOf(selfAccount)).toString())
+        console.log("eth balance:",(await web3.eth.getBalance(selfAccount)).toString())
+    }
 }
 
 async function sleep(ms) {
@@ -98,7 +112,7 @@ async function cbRecorded(err, res) {
         await triggerOnce();
     } else { // Not our turn, check if slashing is possible
         if (timeout <= 0) {
-            await balanceTracker.slash(res.args.nextCaller, {from: from});
+            await balanceTracker.slash(res.args.nextCaller, {from: selfAccount});
             console.log("Slashed!");
 
         }
@@ -108,32 +122,40 @@ async function cbRecorded(err, res) {
 
 async function triggerOnce() {
     console.log("triggering");
-    let res = await balanceTracker.trigger({from: from});
+    let res = await balanceTracker.trigger({from: selfAccount});
     console.log("triggered");
 
 }
 
 async function stake() {
     console.log("stake!");
-    let isParticipantBefore = await balanceTracker.isParticipant(from, {from: from});
+    let isParticipantBefore = await balanceTracker.isParticipant(selfAccount, {from: selfAccount});
     if (isParticipantBefore) {
         console.log("Already a staked participant");
         return;
     }
-    await getDAI();
-    let approve = await cdai.approve(balanceTracker.address, stakeSize, {from: from});
-    let stakeTx = await balanceTracker.stake({from: from});
-    let isParticipantAfter = await balanceTracker.isParticipant(from, {from: from});
+    await getCDAI();
+    let approve = await cdai.approve(balanceTracker.address, stakeSize, {from: selfAccount});
+    let stakeTx = await balanceTracker.stake({from: selfAccount});
+    let isParticipantAfter = await balanceTracker.isParticipant(selfAccount, {from: selfAccount});
     if (!isParticipantAfter) throw "Error: balanceTracker.isParticipant() returned false";
-    console.log("Done staking", from);
+    console.log("Done staking", selfAccount);
 
 }
 
 
-async function getDAI() {
+async function getCDAI() {
     console.log("Depositing dai to cdai contract");
     let amount = 1000;
-    await dai.approve(cdai.address, amount, {from: from});
-    await cdai.deposit(amount, {from: from});
+    await dai.approve(cdai.address, amount, {from: selfAccount});
+    await cdai.deposit(amount, {from: selfAccount});
     console.log("Deposited successfully dai to cdai contract");
+}
+
+async function getDAI(amount) {
+    console.log("Transferring dai to", selfAccount);
+    await dai.transfer(selfAccount, amount, {from: daiOwner});
+    let balance = await dai.balanceOf(selfAccount);
+    if (balance.toNumber() >= amount)
+        console.log("Transferred dai successfully");
 }
