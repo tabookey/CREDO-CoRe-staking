@@ -3,7 +3,15 @@ var CDAI = artifacts.require("../contracts/cDAI.sol");
 var DET = artifacts.require("../contracts/DET.sol");
 var BalanceTracker = artifacts.require("../contracts/BalanceTracker.sol");
 Web3 = require('web3');
-argv = require('minimist')(process.argv.slice(4));
+argv = require('minimist')(process.argv.slice(4),{
+    alias: {
+        w: 'work',
+        a: 'account',
+        u: 'unstake'
+
+    }
+
+});
 
 
 var err = 0;
@@ -30,7 +38,11 @@ module.exports = async function (callback) {
     console.log("Using account", argv.account, "address", selfAccount);
 
     if (argv.sponsor) {
-        await getDAI(1000);
+        try {
+            await getDAI(1000);
+        } catch (e) {
+            console.log(e);
+        }
     }
 
     if (argv.status) {
@@ -40,7 +52,12 @@ module.exports = async function (callback) {
     }
 
     if (argv.unstake) {
-        await unstake();
+        try {
+            await unstake();
+
+        }catch (e) {
+            console.log(e);
+        }
     }
 
     if (argv.work) {
@@ -82,7 +99,6 @@ async function setup() {
     console.log("cdaiAddress", cdaiAddress);
     console.log("balanceTracker", balanceTracker.address);
     console.log("cdai", cdai.address);
-    console.log("accounts", accounts);
 
     BalanceTracker.web3.setProvider(provider);
     console.log("Web3.version", Web3.version, web3.version);
@@ -108,23 +124,27 @@ async function cbRecorded(err, res) {
         console.log("cbRecorded Error", err);
         return;
     }
-    let isParticipant = await balanceTracker.isParticipant(selfAccount, {from: selfAccount});
-    if (!isParticipant) return;
-    console.log("cbRecorded", res.args.nextCaller, res.args.timestamp.toNumber());
-    let timePassedSinceBlock = (Date.now() / 1000 - res.args.timestamp.toNumber());
-    let timeout = 1000 * Math.floor(timeBeforeSlash - timePassedSinceBlock);
-    if (res.args.nextCaller == selfAccount) {
-        console.log("now", Date.now() / 1000, "block.timestamp", res.args.timestamp.toNumber());
-        console.log("cbRecorded setting task in", timeout, timePassedSinceBlock);
-        await sleep(timeout);
-        await triggerOnce();
-        shouldSlash = false;
-    } else { // Not our turn, check if slashing is possible
-        console.log("Setting up slash data");
-        shouldSlash = true;
-        slashee = res.args.nextCaller;
-        console.log("cdai balance before:", (await cdai.balanceOf(selfAccount)).toString());
-        await setTimeout(slash, timeout);
+    try {
+        let isParticipant = await balanceTracker.isParticipant(selfAccount, {from: selfAccount});
+        if (!isParticipant) return;
+        console.log("cbRecorded", res.args.nextCaller, res.args.timestamp.toNumber());
+        let timePassedSinceBlock = (Date.now() / 1000 - res.args.timestamp.toNumber());
+        let timeout = 1000 * Math.floor(timeBeforeSlash - timePassedSinceBlock);
+        if (res.args.nextCaller == selfAccount) {
+            console.log("now", Date.now() / 1000, "block.timestamp", res.args.timestamp.toNumber());
+            console.log("cbRecorded setting task in", timeout, timePassedSinceBlock);
+            await sleep(timeout);
+            await triggerOnce();
+            shouldSlash = false;
+        } else { // Not our turn, check if slashing is possible
+            console.log("Setting up slash data");
+            shouldSlash = true;
+            slashee = res.args.nextCaller;
+            console.log("cdai balance before:", (await cdai.balanceOf(selfAccount)).toString());
+            await setTimeout(slash, timeout);
+        }
+    } catch (e) {
+        console.log(e);
     }
 
 }
@@ -132,7 +152,11 @@ async function cbRecorded(err, res) {
 async function slash() {
     console.log("Checking if slashable");
     if (shouldSlash) {
-        await balanceTracker.slash(slashee, {from: selfAccount});
+        try {
+            await balanceTracker.slash(slashee, {from: selfAccount});
+        } catch (e) {
+            console.log(e);
+        }
         console.log("Slashed!");
         console.log("cdai balance after:", (await cdai.balanceOf(selfAccount)).toString());
     }else {
@@ -142,7 +166,11 @@ async function slash() {
 
 async function triggerOnce() {
     console.log("triggering");
-    let res = await balanceTracker.trigger({from: selfAccount});
+    try {
+        await balanceTracker.trigger({from: selfAccount});
+    } catch (e) {
+        console.log(e);
+    }
     console.log("triggered");
 
 }
