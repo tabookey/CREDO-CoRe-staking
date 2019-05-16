@@ -115,7 +115,7 @@ contract('BalanceTracker', function (accounts) {
             await balanceTracker.slash(slashee, {from: accounts[0]});
             assert.fail()
         } catch (error) {
-            assertErrorMessageCorrect(error, "Not enough time passed or wrong participant address given")
+            assertErrorMessageCorrect(error, "Wrong participant address given")
         }
 
         let nextCaller = accounts[0];
@@ -128,7 +128,7 @@ contract('BalanceTracker', function (accounts) {
             await balanceTracker.slash(slashee, {from: accounts[0]});
             assert.fail()
         } catch (error) {
-            assertErrorMessageCorrect(error, "Not enough time passed or wrong participant address given")
+            assertErrorMessageCorrect(error, "Not enough time passed")
         }
 
         increaseTime(20 * 60);

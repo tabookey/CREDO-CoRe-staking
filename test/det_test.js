@@ -148,7 +148,7 @@ contract('DET', function (accounts) {
         // account3 finds himself with negative balance
         let expected_debt = 10;
         assert.equal((await cdai.debtOf(from)).toString(), -1 * expected_debt);
-        assert.equal(update_creatind_debt_receipt.logs[2].event, "Debt");
+        assert.equal(update_creatind_debt_receipt.logs[1].event, "Debt");
 
         // he though he still got time to pay it all back
         try {
@@ -165,8 +165,8 @@ contract('DET', function (accounts) {
 
         // so they came and took everything from him
         let foreclosure_receipt = await cdai.forecloseDET(from, expected_debt);
-        assert.equal(foreclosure_receipt.logs[3].event, "Foreclosed");
-        assert.equal(foreclosure_receipt.logs[4].event, "DebtSettled");
+        assert.equal(foreclosure_receipt.logs[2].event, "Foreclosed");
+        assert.equal(foreclosure_receipt.logs[3].event, "DebtSettled");
 
         // and he had nothing left - no DET, no debt
         assert.equal((await det.balanceOf(from)).toString(), 0);
