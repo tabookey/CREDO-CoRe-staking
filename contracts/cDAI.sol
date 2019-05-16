@@ -123,7 +123,7 @@ contract cDAI is IERC20 {
         uint detHolderBalance = det.balanceOf(detHolder);
         //        require(detHolderBalance > 0, "Insufficient DET balance");
         uint currentValue = dai.balanceOf(address(this)).mul(detHolderBalance).div(detDivider);
-                emit DuringUpdate(currentValue, detHolderBorrowedCDAI[detHolder], detHolder, _balances[detHolder]);
+        //                emit DuringUpdate(currentValue, detHolderBorrowedCDAI[detHolder], detHolder, _balances[detHolder]);
         // TODO: check this conversion!
         int diff = int(currentValue) - int(detHolderBorrowedCDAI[detHolder]);
         detHolderBorrowedCDAI[detHolder] = currentValue;
@@ -131,7 +131,7 @@ contract cDAI is IERC20 {
         if (diff > 0) {
             _mint(detHolder, uint(diff));
         } else if (diff < 0) {
-            _burn(detHolder, uint(-diff));
+            _burn(detHolder, uint(- diff));
             //            emit DuringUpdate(currentValue, detHolderBorrowedCDAI[detHolder], detHolder, diff);
         }
 
@@ -147,8 +147,8 @@ contract cDAI is IERC20 {
         require(int(amount) > 0, "amount too large");
         uint daiBalance = dai.balanceOf(address(this));
         updateDETHolderBalance(detHolder);
+        require(_balances[detHolder] + int(amount) <= 0, "DET owner not in debt");
         require(debtTimers[detHolder] > 0 && debtTimers[detHolder] < now, "Not due date yet");
-        require(_balances[detHolder] + int(amount) <= 0, "DET owner no in debt");
         uint detAmount = amount * detDivider / daiBalance;
         require(_balances[msg.sender] >= int(amount) && det.balanceOf(detHolder) >= detAmount, "Sender doesn't have enough cDAI to foreclose DET");
         transfer(detHolder, amount);
@@ -169,13 +169,13 @@ contract cDAI is IERC20 {
         uint daiBalance = dai.balanceOf(address(this));
         uint amount = detAmount.mul(daiBalance).div(detDivider);
         int iamount = int(amount);
-//                emit BeforeUpdate(detValue, from, to, _balances[from], _balances[to], iamount);
+        //                emit BeforeUpdate(detValue, from, to, _balances[from], _balances[to], iamount);
         require(iamount >= 0, "Amount too large");
         // Ensure that balance is updated to current DET value
         updateDETHolderBalance(from);
         require(iamount <= _balances[from], "Insufficient cDai balance ");
         updateDETHolderBalance(to);
-//        emit AfterUpdate(detValue, from, to, _balances[from], _balances[to], iamount);
+        //        emit AfterUpdate(detValue, from, to, _balances[from], _balances[to], iamount);
     }
 
     function totalSupply() public view returns (uint256) {

@@ -9,7 +9,9 @@ argv = require('minimist')(process.argv.slice(4), {
         s: 'status',
         t: 'transfer'
     },
-    string: "to"
+    string: "to",
+    string: "update",
+    string: "foreclose"
 
 });
 
@@ -66,6 +68,35 @@ module.exports = async function (callback) {
         console.log("Withdrawing", amount, "dai", "from", cdai.address);
         try {
             await withdraw(amount)
+        } catch (e) {
+            console.log(e);
+        }
+
+    }
+
+    if (argv.update) {
+        if (!web3.utils.isAddress(argv.update)) {
+            console.log("Invalid address to update");
+            process.exit(1);
+        }
+        console.log("Updating DET holder balance of:",argv.update);
+        try {
+            await updateDETHolderBalance(argv.update)
+        } catch (e) {
+            console.log(e);
+        }
+
+    }
+
+    if (argv.foreclose) {
+        let amount = validateInt(argv.amount,"Invalid amount to foreclose");
+        if (!web3.utils.isAddress(argv.foreclose)) {
+            console.log("Invalid address to foreclose");
+            process.exit(1);
+        }
+        console.log("foreclosing DET holder debt:",argv.foreclose);
+        try {
+            await forecloseDET(argv.foreclose,amount)
         } catch (e) {
             console.log(e);
         }
@@ -136,4 +167,18 @@ async function withdraw(amount) {
     await cdai.withdraw(amount, {from: selfAccount});
     console.log("cdai balance after:", (await cdai.balanceOf(selfAccount)).toString());
     console.log("dai balance after:", (await dai.balanceOf(selfAccount)).toString());
+}
+
+async function updateDETHolderBalance(detHolder) {
+    let res = await cdai.updateDETHolderBalance(detHolder, {from: selfAccount})
+    console.log("cdai balance of det holder updated");
+    if (res.logs[0].event == 'Debt') {
+        console.log(res.logs[0].args.detHolder,"has debt of",es.logs[0].args.amount.toString(),"cdai that must be paid by",res.logs[0].args.mustBePaidBy.toString());
+    }
+}
+
+async function forecloseDET(detHolder,amount) {
+    await cdai.forecloseDET(detHolder, amount,{from: selfAccount})
+    console.log("Debt foreclosed!");
+
 }
