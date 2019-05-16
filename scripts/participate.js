@@ -105,7 +105,7 @@ async function cbRecorded(err, res) {
     console.log("cbRecorded", res.args.nextCaller, res.args.timestamp.toNumber());
     let timePassedSinceBlock = (Date.now() / 1000 - res.args.timestamp.toNumber());
     let timeout = 1000 * Math.floor(timeBeforeSlash - timePassedSinceBlock);
-    if (res.args.nextCaller == accounts[0]) {
+    if (res.args.nextCaller == selfAccount) {
         console.log("now", Date.now() / 1000, "block.timestamp", res.args.timestamp.toNumber());
         console.log("cbRecorded setting task in", timeout, timePassedSinceBlock);
         await sleep(timeout);
