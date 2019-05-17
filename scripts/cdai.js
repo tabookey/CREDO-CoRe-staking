@@ -9,9 +9,7 @@ argv = require('minimist')(process.argv.slice(4), {
         s: 'status',
         t: 'transfer'
     },
-    string: "to",
-    string: "update",
-    string: "foreclose"
+    string: ["to", "update", "foreclose"]
 
 });
 

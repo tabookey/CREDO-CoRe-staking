@@ -13,7 +13,6 @@ argv = require('minimist')(process.argv.slice(4),{
 
 });
 
-
 var err = 0;
 var dai, cdai, det, balanceTracker;
 var accounts;
@@ -22,8 +21,6 @@ const stakeSize = 10;
 // 10 minutes in seconds
 const timeBeforeSlash = 7//*60;
 var selfAccount;
-
-// web3 = new Web3(new Web3.providers.WebsocketProvider('ws://localhost:8545'));
 
 module.exports = async function (callback) {
     await setup();
