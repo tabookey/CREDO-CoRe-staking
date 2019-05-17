@@ -5,7 +5,6 @@ Web3 = require('web3');
 argv = require('minimist')(process.argv.slice(4), {
     alias: {
         a: 'account',
-        u: 'unstake',
         s: 'status',
         t: 'transfer'
     },
@@ -102,9 +101,10 @@ module.exports = async function (callback) {
     }
 
     if (argv.status) {
-        console.log("dai balance:", (await dai.balanceOf(selfAccount)).toString())
-        console.log("cdai balance:", (await cdai.balanceOf(selfAccount)).toString())
-        console.log("eth balance:", (await web3.eth.getBalance(selfAccount)).toString())
+        console.log("dai balance:", (await dai.balanceOf(selfAccount)).toString());
+        console.log("cdai balance:", (await cdai.balanceOf(selfAccount)).toString());
+        console.log("det balance:", (await det.balanceOf(selfAccount)).toString());
+        console.log("eth balance:", (await web3.eth.getBalance(selfAccount)).toString());
     }
 
     callback(err);
