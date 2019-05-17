@@ -29,6 +29,7 @@
     "ganache-cli": "^6.2.5",
     "run-with-testrpc": "^0.3.0",
     "solc": "^0.5.2",
-    "truffle": "^5.0.2"
+    "truffle": "^5.0.2",
+    "tar": ">=4.4.2"
   }
 }
