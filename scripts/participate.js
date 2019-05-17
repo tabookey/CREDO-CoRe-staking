@@ -3,7 +3,7 @@ var CDAI = artifacts.require("../contracts/cDAI.sol");
 var DET = artifacts.require("../contracts/DET.sol");
 var BalanceTracker = artifacts.require("../contracts/BalanceTracker.sol");
 Web3 = require('web3');
-argv = require('minimist')(process.argv.slice(4),{
+argv = require('minimist')(process.argv.slice(4), {
     alias: {
         w: 'work',
         a: 'account',
@@ -19,8 +19,9 @@ var accounts;
 
 const stakeSize = 10;
 // 10 minutes in seconds
-const timeBeforeSlash = 7//*60;
+const timeBeforeSlash = 6//*60;
 var selfAccount;
+var slashTask;
 
 module.exports = async function (callback) {
     await setup();
@@ -52,7 +53,7 @@ module.exports = async function (callback) {
         try {
             await unstake();
 
-        }catch (e) {
+        } catch (e) {
             console.log(e);
         }
     }
@@ -61,11 +62,8 @@ module.exports = async function (callback) {
         try {
             setNextCallerListener();
             await stake();
-            // triggerOnce();
-            let i = 0;
             while (true) {
-                await sleep(3000);
-                console.log("HI!", i++, "now", Date.now() / 1000);
+                await sleep(500);
             }
 
         } catch (e) {
@@ -127,18 +125,16 @@ async function cbRecorded(err, res) {
         console.log("cbRecorded", res.args.nextCaller, res.args.timestamp.toNumber());
         let timePassedSinceBlock = (Date.now() / 1000 - res.args.timestamp.toNumber());
         let timeout = 1000 * Math.floor(timeBeforeSlash - timePassedSinceBlock);
+        // Clear slash task when we get another Recorded event - we either set it again for future check or we're the next caller
+        clearInterval(slashTask);
         if (res.args.nextCaller == selfAccount) {
-            console.log("now", Date.now() / 1000, "block.timestamp", res.args.timestamp.toNumber());
-            console.log("cbRecorded setting task in", timeout, timePassedSinceBlock);
+            console.log("cbRecorded setting trigger() in", timeout, timePassedSinceBlock);
             await sleep(timeout);
             await triggerOnce();
-            shouldSlash = false;
         } else { // Not our turn, check if slashing is possible
-            console.log("Setting up slash data");
-            shouldSlash = true;
-            slashee = res.args.nextCaller;
-            console.log("cdai balance before:", (await cdai.balanceOf(selfAccount)).toString());
-            await setTimeout(slash, timeout);
+            console.log("Date.now()", Date.now(),"timeout", timeout);
+            slashTask = setInterval(slash, timeout);
+
         }
     } catch (e) {
         console.log(e);
@@ -147,16 +143,23 @@ async function cbRecorded(err, res) {
 }
 
 async function slash() {
-    console.log("Checking if slashable");
-    if (shouldSlash) {
+    console.log("Checking if slashable now:");
+    let lastRecordedTime = await balanceTracker.lastRecordedTime();
+    let nextCaller = await balanceTracker.nextCaller();
+    console.log("lastRecordedTime", lastRecordedTime.toNumber(), "nextCaller", nextCaller);
+    let timediff = Date.now()/1000 - lastRecordedTime.toNumber();
+    console.log("now - lastRecordedTime", timediff);
+
+    if ( timediff >= timeBeforeSlash && nextCaller != selfAccount) {
         try {
-            await balanceTracker.slash(slashee, {from: selfAccount});
+            console.log("cdai balance before slash:", (await cdai.balanceOf(selfAccount)).toString());
+            await balanceTracker.slash(nextCaller, {from: selfAccount});
+            console.log("Slashed!");
         } catch (e) {
             console.log(e);
         }
-        console.log("Slashed!");
-        console.log("cdai balance after:", (await cdai.balanceOf(selfAccount)).toString());
-    }else {
+        console.log("cdai balance after slash:", (await cdai.balanceOf(selfAccount)).toString());
+    } else {
         console.log("Not slashable");
     }
 }
