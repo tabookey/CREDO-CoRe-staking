@@ -48,6 +48,7 @@ module.exports = async function (callback) {
         console.log("cdai balance:", (await cdai.balanceOf(selfAccount)).toString());
         console.log("det balance:", (await det.balanceOf(selfAccount)).toString());
         console.log("eth balance:", (await web3.eth.getBalance(selfAccount)).toString());
+        console.log("dapp cdai balance:", (await cdai.balanceOf(balanceTracker.address)).toString());
     }
 
     if (argv.unstake) {
