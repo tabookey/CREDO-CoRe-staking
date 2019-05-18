@@ -1,28 +1,3 @@
-//ERC20, initialized at constructor with 100 DET owned by the creator.
-//Constructor also creates cDAI contract and saves its address as cDAI_contract.
-//Creator transfers DET to investors using standard ERC20 transfers.
-//
-//mapping(address => uint256) DET_balances;
-//
-//constructor:
-//    total_det = 100
-//    DET_balances[msg.sender] = 100
-//    cDAI_contract = new cDAI_contract...
-//
-//Implement all public ERC20 functions.  Transfers use the internal transfer function below.
-//
-//public foreclose(address1,address2,amount) - Used by cDAI_contract to foreclose DET of investors with negative cDAI balance.
-//    require sender == cDAI_contract
-//    transfer(address1,address2,amount).
-//
-//internal transfer(from, to, amount) -
-//    require DET_balances[from] >= amount
-//    cDAI_contract.transfer_by_det(from, to, amount)     // Transfer the cDAI associated with the transferred DET. Requires the cDAI to be "free" (not staked or withdrawn)
-//    // transfer det amount from `from` to `to`
-//    DET_balances[from] -= amount    // Use SafeMath of course
-//    DET_balances[to] += amount    // Use SafeMath of course
-//    Emit ERC20 Transfer event.
-
 pragma solidity >=0.4.0 <0.6.0;
 
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";

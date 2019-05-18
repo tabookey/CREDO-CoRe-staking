@@ -37,7 +37,7 @@ module.exports = async function (callback) {
             console.log("Invalid address to transfer");
             process.exit(1);
         }
-        console.log("transferring", amount, "cdai", "to", argv.to);
+        console.log("transferring", amount, "det", "to", argv.to);
         try {
             await transfer(argv.to, amount);
 
@@ -45,8 +45,7 @@ module.exports = async function (callback) {
             console.log(e);
 
         }
-        // console.log(await cdai.transfer(argv.to, amount, {from: selfAccount}));
-        console.log("cdai balance after:", (await cdai.balanceOf(selfAccount)).toString());
+        console.log("det balance after:", (await det.balanceOf(selfAccount)).toString());
     }
 
     if (argv.status) {
